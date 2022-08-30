@@ -1,0 +1,9 @@
+# Amber's ICMP configuration file
+#
+# Syntax: ACCEPT <traffic_type> <ip[/mask]>
+
+# Accept bidirectional traffic Started By Me to any IP.
+    ACCEPT    SBM    0.0.0.0/0
+
+# Accept bidirectional traffic Started By Others to me.
+#    ACCEPT    SBO    192.168.1.X

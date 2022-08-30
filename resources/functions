@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+
+display_banner() {
+    # Art by Donovan Bake (https://www.asciiart.eu/miscellaneous/diamonds)
+    echo -e "\n     ${NAME}\n"
+    echo -e "  .     '     ,   "
+    echo -e "    _________     "
+    echo -e " _ /_|_____|_\\ _  $OVERVIEW_LN1"
+    echo -e "   '. \\   / .'    $OVERVIEW_LN2"
+    echo -e "     '.\\ /.'     "
+    echo -e "       '.'        by $AUTHOR ($TWITTER)"
+    echo -e "\n      $VERSION\n"
+}
+
+disable_color() {
+    RED="\e[0m"
+    GREEN="\e[0m"
+    YELLOW="\e[0m"
+    BLUE="\e[0m"
+    MAGENTA="\e[0m"
+    CYAN="\e[0m"
+    GRAY="\e[0m"
+    L_RED="\e[0m"
+    L_GREEN="\e[0m"
+    L_YELLOW="\e[0m"
+    L_BLUE="\e[0m"
+    L_MAGENTA="\e[0m"
+    L_CYAN="\e[0m"
+    L_GRAY="\e[0m"
+    BOLD="\e[0m"
+    FAINT="\e[0m"
+    ITALIC="\e[0m"
+    UNDERLINED="\e[0m"
+    BLINK="\e[0m"
+    INVERT="\e[0m"
+    STRIKETHROUGH="\e[0m"
+    RESET="\e[0m"
+}
+
+display_config_message() {
+    echo -e "$1"
+    sleep 0.25
+}
+
+delete_rules() {
+    iptables -Z
+    iptables -F
+    iptables -X
+
+    ip6tables -Z
+    ip6tables -F
+    ip6tables -X
+}
+
+set_default_policies() {
+    iptables -P INPUT DROP
+    iptables -P FORWARD DROP
+    iptables -P OUTPUT DROP
+
+    ip6tables -P INPUT DROP
+    ip6tables -P FORWARD DROP
+    ip6tables -P OUTPUT DROP
+}
+
+allow_localhost() {
+    iptables -A OUTPUT -o lo -s "$LOCALHOST" -d "$LOCALHOST" -j ACCEPT
+    iptables -A INPUT  -i lo -d "$LOCALHOST" -s "$LOCALHOST" -j ACCEPT
+}
+
+allow_local_IP() {
+    iptables -A OUTPUT -s $LOCAL_IP -d $LOCAL_IP -j ACCEPT
+    iptables -A INPUT  -d $LOCAL_IP -s $LOCAL_IP -j ACCEPT
+}
+
+apply_TCP_config() {
+
+    while IFS="" read -r line || [[ -n "$line" ]]
+    do
+        action=$(echo $line | awk '{print $1}')
+        traffic=$(echo $line | awk '{print $2}')
+        ip=$(echo $line  | awk '{print $3}')
+        port=$(echo $line | awk '{print $4}')
+        desc=$(echo $line  | awk '{print $5}')
+
+        # Ignore comments and empty lines
+        if [[ "$action" == *"#"* || "$action" == "" ]]; then continue; fi
+
+        # Use the local network for origin/destination traffic
+        if [[ "$ip" == "USE_MY_NET" ]]; then ip="$LOCAL_NET"; fi
+
+        if [[ "$traffic" == "SBM" ]]; then
+            echo -e "\t${GREEN}[+]${RESET} ${FAINT}Allowing${RESET} bidirectional traffic started by me ${L_CYAN}$LOCAL_IP${RESET} to ${L_CYAN}$ip${RESET}:${L_MAGENTA}$port${RESET} (${BOLD}$desc${RESET})."
+                iptables -A OUTPUT -p tcp -s "$LOCAL_IP" -d "$ip" --dport "$port" -m state --state NEW,ESTABLISHED,RELATED -j "$action"
+                iptables -A INPUT  -p tcp -d "$LOCAL_IP" -s "$ip" --sport "$port" -m state --state ESTABLISHED,RELATED -j "$action"
+
+        elif [[ "$traffic" == "SBO" ]]; then
+            echo -e "\t${GREEN}[+]${RESET} ${FAINT}Allowing${RESET} bidirectional traffic started by ${L_CYAN}$ip${RESET} to me ${L_CYAN}$LOCAL_IP${RESET}:${L_MAGENTA}$port${RESET} (${BOLD}${desc//_/ }${RESET})."
+                iptables -A INPUT  -p tcp -d "$LOCAL_IP" --dport "$port" -s "$ip" -m state --state NEW,ESTABLISHED,RELATED -j "$action"
+                iptables -A OUTPUT -p tcp -s "$LOCAL_IP" --sport "$port" -d "$ip" -m state --state ESTABLISHED,RELATED -j "$action"
+
+        else
+            echo -e "\t${RED}[-]${RESET} Error: Traffic type not supported."
+            restore_rules
+            exit 1
+        fi
+
+    done < "$TCP_CONFIG_FILE"
+
+    sleep $TIME
+}
+
+apply_UDP_config() {
+
+    while IFS="" read -r line || [[ -n "$line" ]]
+    do
+        action=$(echo $line | awk '{print $1}')
+        traffic=$(echo $line | awk '{print $2}')
+        ip=$(echo $line  | awk '{print $3}')
+        port=$(echo $line | awk '{print $4}')
+        desc=$(echo $line  | awk '{print $5}')
+
+        # Ignore comments and empty lines
+        if [[ "$action" == *"#"* || "$action" == "" ]]; then continue; fi
+
+        # Use the current DNS IP address
+        if [[ "$ip" == "USE_MY_DNS" ]]; then ip="$DNS_SERVER_IP"; fi
+
+        if [[ "$traffic" == "SBM" ]]; then
+            echo -e "\t${GREEN}[+]${RESET} ${FAINT}Allowing${RESET} bidirectional traffic started by me ${L_CYAN}$LOCAL_IP${RESET} to ${L_CYAN}$ip${RESET}:${L_MAGENTA}$port${RESET} (${BOLD}$desc${RESET})."
+                iptables -A OUTPUT -p udp -s $LOCAL_IP -d $ip --dport 53 -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+                iptables -A INPUT  -p udp -d $LOCAL_IP -s $ip --sport 53 -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+        elif [[ "$traffic" == "SBO" ]]; then
+            echo -e "\t${GREEN}[+]${RESET} ${FAINT}Allowing${RESET} bidirectional traffic started by ${L_CYAN}$ip${RESET} to me ${L_CYAN}$LOCAL_IP${RESET}:${L_MAGENTA}$port${RESET} (${BOLD}${desc//_/ }${RESET})."
+                iptables -A INPUT  -p udp -d "$LOCAL_IP" --dport "$port" -s "$ip" -m state --state NEW,ESTABLISHED,RELATED -j "$action"
+                iptables -A OUTPUT -p udp -s "$LOCAL_IP" --sport "$port" -d "$ip" -m state --state ESTABLISHED,RELATED -j "$action"
+        else
+            echo -e "\t${RED}[-]${RESET} Error: Traffic type not supported."
+            restore_rules
+            exit 1
+        fi
+
+    done < "$UDP_CONFIG_FILE"
+
+    sleep $TIME
+}
+
+apply_ICMP_config() {
+
+    while IFS="" read -r line || [[ -n "$line" ]]
+    do
+        action=$(echo $line | awk '{print $1}')
+        traffic=$(echo $line | awk '{print $2}')
+        ip=$(echo $line  | awk '{print $3}')
+
+        # Ignore comments and empty lines
+        if [[ "$action" == *"#"* || "$action" == "" ]]; then continue; fi
+
+        # Use the local network for origin/destination traffic
+        if [[ "$ip" == "USE_MY_NET" ]]; then ip="$LOCAL_NET"; fi
+
+        if [[ "$traffic" == "SBM" ]]; then
+            echo -e "\t${GREEN}[+]${RESET} ${FAINT}Allowing${RESET} bidirectional traffic started by me ${L_CYAN}$LOCAL_IP${RESET} to ${L_CYAN}$ip${RESET}."
+                iptables -A OUTPUT -p icmp -s "$LOCAL_IP" -d "$ip" -m state --state NEW,ESTABLISHED,RELATED -j "$action"
+                iptables -A INPUT  -p icmp -d "$LOCAL_IP" -s "$ip" -m state --state ESTABLISHED,RELATED -j "$action"
+
+        elif [[ "$traffic" == "SBO" ]]; then
+            echo -e "\t${GREEN}[+]${RESET} ${FAINT}Allowing${RESET} bidirectional traffic started by ${L_CYAN}$ip${RESET} to me ${L_CYAN}$LOCAL_IP${RESET}."
+                iptables -A INPUT  -p icmp -d "$LOCAL_IP" -s "$ip" -m state --state NEW,ESTABLISHED,RELATED -j "$action"
+                iptables -A OUTPUT -p icmp -s "$LOCAL_IP" -d "$ip" -m state --state ESTABLISHED,RELATED -j "$action"
+
+        else
+            echo -e "\t${RED}[-]${RESET} Error: Traffic type not supported."
+            restore_rules
+            exit 1
+        fi
+
+    done < "$ICMP_CONFIG_FILE"
+
+    sleep $TIME
+}
+
+restore_defaults() {
+    delete_rules
+
+    iptables -P INPUT ACCEPT
+    iptables -P FORWARD ACCEPT
+    iptables -P OUTPUT ACCEPT
+    #iptables -t nat -F
+    #iptables -t mangle -F
+
+    ip6tables -P INPUT ACCEPT
+    ip6tables -P FORWARD ACCEPT
+    ip6tables -P OUTPUT ACCEPT
+    #i6ptables -t nat -F
+    #i6ptables -t mangle -F
+}
+
+restore_rules() {
+    restore_defaults
+    echo -e "\n${YELLOW}[i]${RESET} All rules have been restored to defaults due to an error being detected.\n"
+}

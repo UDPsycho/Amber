@@ -1,0 +1,7 @@
+# Amber's UDP configuration file
+#
+# Syntax: ACCEPT <traffic_type> <ip[/mask]> <port> <description>*
+# *for 2+ words use underscores instead of whitespaces
+
+# Accept bidirectional traffic Started By Me to my DNS provider on port 53.
+    ACCEPT    SBM    USE_MY_DNS    53    DNS

@@ -1,0 +1,12 @@
+# Amber's TCP configuration file
+#
+# Syntax: ACCEPT <traffic_type> <ip[/mask]> <port> <description>*
+# *for 2+ words use underscores instead of whitespaces
+
+# Accept bidirectional traffic Started By Me to any IP on ports 80 and 443 (web browsing).
+    ACCEPT    SBM    0.0.0.0/0    80     http
+    ACCEPT    SBM    0.0.0.0/0    443    https
+
+# Accept bidirectional traffic Started By Others to me on ports 80 and 4444.
+#    ACCEPT    SBO    192.168.1.0/24    80      local_web_server
+#    ACCEPT    SBO    USE_MY_NET        4444    metasploit

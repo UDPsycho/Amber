@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+# Required for color output
+RED="\e[1;31m"
+GREEN="\e[1;32m"
+YELLOW="\e[1;33m"
+BLUE="\e[1;34m"
+MAGENTA="\e[1;35m"
+CYAN="\e[1;36m"
+GRAY="\e[1;37m"
+L_RED="\e[91m"
+L_GREEN="\e[92m"
+L_YELLOW="\e[93m"
+L_BLUE="\e[94m"
+L_MAGENTA="\e[95m"
+L_CYAN="\e[96m"
+L_GRAY="\e[97m"
+BOLD="\e[1m"
+FAINT="\e[2m"
+ITALIC="\e[3m"
+UNDERLINED="\e[4m"
+BLINK="\e[5m"
+INVERT="\e[7m"
+STRIKETHROUGH="\e[9m"
+RESET="\e[0m"
+
+# About Amber
+NAME="${RED}A${GREEN}m${YELLOW}b${BLUE}e${MAGENTA}r${RESET} ${RED}LF${RESET}"
+OVERVIEW_LN1="Basic ${RED}local firewall${RESET} implementation via ${ITALIC}iptables${RESET} to try to protect the host machine "
+OVERVIEW_LN2="by allowing only the specific bidirectional traffic configured by the user."
+VERSION="v1.0"
+AUTHOR="${BLUE}Psycho${RESET}"
+TWITTER="@UDPsycho"
+
+# Configuration files
+TCP_CONFIG_FILE="config/tcp.alf"
+UDP_CONFIG_FILE="config/udp.alf"
+ICMP_CONFIG_FILE="config/icmp.alf"
+
+# Local IP addresses
+LOCALHOST="127.0.0.1"
+LOCAL_IP="$(hostname -I | awk '{print $1;}')"
+LOCAL_NET="$LOCAL_IP/24"
+
+# Current DNS IP address
+DNS_SERVER_IP="$(grep "nameserver" /etc/resolv.conf | head -n 1 | awk '{print $2;}')"
+
+# Default iptables policy
+POLICY="DROP"
+
+# Seconds for sleep command
+TIME=0.5
